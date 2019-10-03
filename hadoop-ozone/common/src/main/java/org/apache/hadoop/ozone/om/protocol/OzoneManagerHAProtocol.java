@@ -19,6 +19,7 @@
 package org.apache.hadoop.ozone.om.protocol;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Protocol to talk to OM HA. These methods are needed only called from
@@ -33,5 +34,7 @@ public interface OzoneManagerHAProtocol {
    * @throws IOException
    */
   long saveRatisSnapshot() throws IOException;
+
+  Map<String, String> getServiceStates(String omServiceId) throws IOException;
 
 }

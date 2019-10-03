@@ -615,7 +615,7 @@ public final class OzoneManagerRatisServer {
     }
   }
 
-  private GroupInfoReply getGroupInfo() throws IOException {
+  public GroupInfoReply getGroupInfo() throws IOException {
     GroupInfoRequest groupInfoRequest = new GroupInfoRequest(clientId,
         raftPeerId, raftGroupId, nextCallId());
     GroupInfoReply groupInfo = server.getGroupInfo(groupInfoRequest);

@@ -1097,6 +1097,25 @@ message UpdateGetS3SecretRequest {
     required string awsSecret = 2;
 }
 
+message OMServiceId {
+    required string serviceID = 1;
+}
+
+/**
+  This proto is used to define the OM node Id and its ratis server state.
+*/
+message RoleInfo {
+    required string omNodeID = 1;
+    required string ratisServerRole = 2;
+}
+
+/**
+  This is used to get the Server States of OMs.
+*/
+message ServiceState {
+    repeated RoleInfo roleInfos = 1;
+}
+
 /**
  The OM service that takes care of Ozone namespace.
 */
@@ -1104,4 +1123,8 @@ service OzoneManagerService {
     // A client-to-OM RPC to send client requests to OM Ratis server
     rpc submitRequest(OMRequest)
           returns(OMResponse);
+
+    // A client-to-OM RPC to get ratis server states of OMs
+    rpc getServiceState(OMServiceId)
+          returns(ServiceState);
 }

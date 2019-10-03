@@ -62,7 +62,7 @@ import org.apache.hadoop.hdds.utils.db.SequenceNumberNotFoundException;
     serverPrincipal = OMConfigKeys.OZONE_OM_KERBEROS_PRINCIPAL_KEY)
 @TokenInfo(OzoneDelegationTokenSelector.class)
 public interface OzoneManagerProtocol
-    extends OzoneManagerSecurityProtocol, Closeable {
+    extends OzoneManagerHAProtocol, OzoneManagerSecurityProtocol, Closeable {
 
   @SuppressWarnings("checkstyle:ConstantName")
   /**

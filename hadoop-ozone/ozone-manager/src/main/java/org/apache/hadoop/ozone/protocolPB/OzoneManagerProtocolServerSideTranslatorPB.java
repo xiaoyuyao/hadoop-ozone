@@ -31,9 +31,16 @@ import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMServiceId;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.RoleInfo;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ServiceState;
 
 import com.google.protobuf.RpcController;
 import com.google.protobuf.ServiceException;
+import org.apache.ratis.proto.RaftProtos.RaftPeerRole;
+import org.apache.ratis.proto.RaftProtos.RoleInfoProto;
+import org.apache.ratis.proto.RaftProtos.ServerRpcProto;
+import org.apache.ratis.protocol.GroupInfoReply;
 import org.apache.ratis.protocol.RaftPeerId;
 import org.apache.ratis.util.ExitUtils;
 import org.slf4j.Logger;
@@ -240,5 +247,65 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements
     if (!isRatisEnabled) {
       ozoneManagerDoubleBuffer.stop();
     }
+  }
+
+  @Override
+  public ServiceState getServiceState(RpcController controller,
+      OMServiceId request) throws ServiceException {
+
+    if (!omRatisServer.isLeader()) {
+      throw createNotLeaderException();
+    }
+    try {
+      GroupInfoReply groupInfo = omRatisServer.getGroupInfo();
+      if (groupInfo == null) {
+        throw createServiceException(ozoneManager.getOMNodeId() +
+            ": Failed to get GroupInfo.");
+      } else {
+        ServiceState.Builder serviceStateBuilder = ServiceState.newBuilder();
+        RoleInfoProto roleInfoProto =
+            omRatisServer.getGroupInfo().getRoleInfoProto();
+        String selfNodeId = new String(
+            roleInfoProto.getSelf().getId().toByteArray());
+        String selfRole = roleInfoProto.getRole().name();
+        RoleInfo selfRoleInfo = RoleInfo.newBuilder()
+            .setOmNodeID(selfNodeId)
+            .setRatisServerRole(selfRole)
+            .build();
+        serviceStateBuilder.addRoleInfos(selfRoleInfo);
+
+        if (roleInfoProto.hasLeaderInfo()) {
+          for (ServerRpcProto followerInfo : roleInfoProto.getLeaderInfo()
+              .getFollowerInfoList()) {
+            String id = new String(followerInfo.getId().getId().toByteArray());
+            RoleInfo roleInfo = RoleInfo.newBuilder()
+                .setOmNodeID(id)
+                .setRatisServerRole(RaftPeerRole.FOLLOWER.name())
+                .build();
+            serviceStateBuilder.addRoleInfos(roleInfo);
+          }
+        }
+        if (roleInfoProto.hasFollowerInfo()) {
+          String leaderNodeId = new String(
+              roleInfoProto.getFollowerInfo().getLeaderInfo().getId().getId()
+                  .toByteArray());
+          RoleInfo leaderRoleInfo = RoleInfo.newBuilder()
+              .setOmNodeID(selfNodeId)
+              .setRatisServerRole(RaftPeerRole.FOLLOWER.name())
+              .build();
+          serviceStateBuilder.addRoleInfos(leaderRoleInfo);
+        }
+        return serviceStateBuilder.build();
+      }
+    } catch (IOException e) {
+      throw new ServiceException(e);
+    }
+  }
+
+  private ServiceException createServiceException(String errorMsg) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug(errorMsg);
+    }
+    return new ServiceException(errorMsg);
   }
 }
