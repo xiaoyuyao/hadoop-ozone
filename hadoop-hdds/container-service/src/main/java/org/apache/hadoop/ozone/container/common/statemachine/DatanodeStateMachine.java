@@ -76,19 +76,19 @@ public class DatanodeStateMachine implements Closeable {
   private final ExecutorService executorService;
   private final Configuration conf;
   private final SCMConnectionManager connectionManager;
+  private final CertificateClient dnCertClient;
   private StateContext context;
-  private final OzoneContainer container;
+  private OzoneContainer container;
   private DatanodeDetails datanodeDetails;
-  private final CommandDispatcher commandDispatcher;
-  private final ReportManager reportManager;
+  private CommandDispatcher commandDispatcher;
+  private ReportManager reportManager;
   private long commandsHandled;
   private AtomicLong nextHB;
   private Thread stateMachineThread = null;
   private Thread cmdProcessThread = null;
-  private final ReplicationSupervisor supervisor;
+  private ReplicationSupervisor supervisor;
 
   private JvmPauseMonitor jvmPauseMonitor;
-  private CertificateClient dnCertClient;
   private final HddsDatanodeStopService hddsDatanodeStopService;
 
   /**
@@ -101,10 +101,6 @@ public class DatanodeStateMachine implements Closeable {
   public DatanodeStateMachine(DatanodeDetails datanodeDetails,
       Configuration conf, CertificateClient certClient,
       HddsDatanodeStopService hddsDatanodeStopService) throws IOException {
-    OzoneConfiguration ozoneConf = new OzoneConfiguration(conf);
-    DatanodeConfiguration dnConf =
-        ozoneConf.getObject(DatanodeConfiguration.class);
-
     this.hddsDatanodeStopService = hddsDatanodeStopService;
     this.conf = conf;
     this.datanodeDetails = datanodeDetails;
@@ -112,44 +108,7 @@ public class DatanodeStateMachine implements Closeable {
                 new ThreadFactoryBuilder().setDaemon(true)
             .setNameFormat("Datanode State Machine Thread - %d").build());
     connectionManager = new SCMConnectionManager(conf);
-    context = new StateContext(this.conf, DatanodeStates.getInitState(), this);
-    container = new OzoneContainer(this.datanodeDetails,
-        ozoneConf, context, certClient);
-    dnCertClient = certClient;
-    nextHB = new AtomicLong(Time.monotonicNow());
-
-    ContainerReplicator replicator =
-        new DownloadAndImportReplicator(container.getContainerSet(),
-            container.getController(),
-            new SimpleContainerDownloader(conf), new TarContainerPacker());
-
-    supervisor =
-        new ReplicationSupervisor(container.getContainerSet(), replicator,
-            dnConf.getReplicationMaxStreams());
-
-    // When we add new handlers just adding a new handler here should do the
-     // trick.
-    commandDispatcher = CommandDispatcher.newBuilder()
-        .addHandler(new CloseContainerCommandHandler())
-        .addHandler(new DeleteBlocksCommandHandler(container.getContainerSet(),
-            conf))
-        .addHandler(new ReplicateContainerCommandHandler(conf, supervisor))
-        .addHandler(new DeleteContainerCommandHandler(
-            dnConf.getContainerDeleteThreads()))
-        .addHandler(new ClosePipelineCommandHandler())
-        .addHandler(new CreatePipelineCommandHandler(conf))
-        .setConnectionManager(connectionManager)
-        .setContainer(container)
-        .setContext(context)
-        .build();
-
-    reportManager = ReportManager.newBuilder(conf)
-        .setStateContext(context)
-        .addPublisherFor(NodeReportProto.class)
-        .addPublisherFor(ContainerReportsProto.class)
-        .addPublisherFor(CommandStatusReportsProto.class)
-        .addPublisherFor(PipelineReportsProto.class)
-        .build();
+    this.dnCertClient = certClient;
   }
 
   /**
@@ -181,6 +140,48 @@ public class DatanodeStateMachine implements Closeable {
    */
   private void start() throws IOException {
     long now = 0;
+
+    OzoneConfiguration ozoneConf = new OzoneConfiguration(conf);
+    DatanodeConfiguration dnConf =
+        ozoneConf.getObject(DatanodeConfiguration.class);
+
+    context = new StateContext(this.conf, DatanodeStates.getInitState(), this);
+    container = new OzoneContainer(this.datanodeDetails,
+        ozoneConf, context, dnCertClient);
+    nextHB = new AtomicLong(Time.monotonicNow());
+
+    ContainerReplicator replicator =
+        new DownloadAndImportReplicator(container.getContainerSet(),
+            container.getController(),
+            new SimpleContainerDownloader(conf), new TarContainerPacker());
+
+    supervisor =
+        new ReplicationSupervisor(container.getContainerSet(), replicator,
+            dnConf.getReplicationMaxStreams());
+
+    // When we add new handlers just adding a new handler here should do the
+    // trick.
+    commandDispatcher = CommandDispatcher.newBuilder()
+        .addHandler(new CloseContainerCommandHandler())
+        .addHandler(new DeleteBlocksCommandHandler(container.getContainerSet(),
+            conf))
+        .addHandler(new ReplicateContainerCommandHandler(conf, supervisor))
+        .addHandler(new DeleteContainerCommandHandler(
+            dnConf.getContainerDeleteThreads()))
+        .addHandler(new ClosePipelineCommandHandler())
+        .addHandler(new CreatePipelineCommandHandler(conf))
+        .setConnectionManager(connectionManager)
+        .setContainer(container)
+        .setContext(context)
+        .build();
+
+    reportManager = ReportManager.newBuilder(conf)
+        .setStateContext(context)
+        .addPublisherFor(NodeReportProto.class)
+        .addPublisherFor(ContainerReportsProto.class)
+        .addPublisherFor(CommandStatusReportsProto.class)
+        .addPublisherFor(PipelineReportsProto.class)
+        .build();
 
     reportManager.init();
     initCommandHandlerThread(conf);
