@@ -1,0 +1,20 @@
+name: it-hdds-om
+on:
+  schedule:
+   - cron: '*/30 * * * *'
+jobs:
+  it-client:
+    name: it-hdds-om
+    runs-on: ubuntu-18.04
+    steps:
+        - uses: actions/checkout@master
+          with:
+            ref: HDDS-3821
+        - uses: ./.github/buildenv
+          with:
+             args: ./hadoop-ozone/dev-support/checks/integration.sh -Dtest=TestOzoneManagerHAMetadataOnly,TestOzoneManagerHAWithData
+        - uses: actions/upload-artifact@master
+          if: always()
+          with:
+            name: it-hdds-om
+            path: target/integration
