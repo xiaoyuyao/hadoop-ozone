@@ -111,7 +111,8 @@ public class OMDirectoryCreateRequest extends OMKeyRequest {
     Preconditions.checkNotNull(createDirectoryRequest);
 
     KeyArgs.Builder newKeyArgs = createDirectoryRequest.getKeyArgs()
-        .toBuilder().setModificationTime(Time.now());
+        .toBuilder().setModificationTime(Time.now())
+        .addAllAcls(getOwnerAcls());
 
     CreateDirectoryRequest.Builder newCreateDirectoryRequest =
         createDirectoryRequest.toBuilder().setKeyArgs(newKeyArgs);

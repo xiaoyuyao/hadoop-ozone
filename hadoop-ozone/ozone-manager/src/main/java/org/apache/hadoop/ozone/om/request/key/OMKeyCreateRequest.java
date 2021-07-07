@@ -142,7 +142,7 @@ public class OMKeyCreateRequest extends OMKeyRequest {
             HddsProtos.ReplicationType.STAND_ALONE;
       }
 
-      // TODO: Here we are allocating block with out any check for
+      // TODO: Here we are allocating block without any check for
       //  bucket/key/volume or not and also with out any authorization checks.
       //  As for a client for the first time this can be executed on any OM,
       //  till leader is identified.
@@ -167,6 +167,8 @@ public class OMKeyCreateRequest extends OMKeyRequest {
       newKeyArgs = keyArgs.toBuilder().setModificationTime(Time.now());
     }
 
+    // TODO: consider remove per key acl for file system optimized bucket.
+    newKeyArgs.addAllAcls(getOwnerAcls());
     newKeyArgs.setKeyName(keyPath);
 
     if (keyArgs.getIsMultipartKey()) {

@@ -562,17 +562,11 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
         .setBucketName(args.getBucketName())
         .setKeyName(args.getKeyName());
 
-    if(args.getAcls() != null) {
-      keyArgs.addAllAcls(args.getAcls().stream().distinct().map(a ->
-          OzoneAcl.toProtobuf(a)).collect(Collectors.toList()));
-    }
-
     if (args.getReplicationConfig() != null) {
       keyArgs.setFactor(
           ReplicationConfig.getLegacyFactor(args.getReplicationConfig()));
       keyArgs.setType(args.getReplicationConfig().getReplicationType());
     }
-
 
     if (args.getDataSize() > 0) {
       keyArgs.setDataSize(args.getDataSize());

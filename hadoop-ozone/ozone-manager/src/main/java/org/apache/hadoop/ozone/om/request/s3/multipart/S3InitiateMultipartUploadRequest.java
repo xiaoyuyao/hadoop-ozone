@@ -80,7 +80,8 @@ public class S3InitiateMultipartUploadRequest extends OMKeyRequest {
             .setMultipartUploadID(UUID.randomUUID().toString() + "-" +
                 UniqueId.next()).setModificationTime(Time.now())
             .setKeyName(validateAndNormalizeKey(
-                ozoneManager.getEnableFileSystemPaths(), keyArgs.getKeyName()));
+                ozoneManager.getEnableFileSystemPaths(), keyArgs.getKeyName()))
+            .addAllAcls(getOwnerAcls());
 
     generateRequiredEncryptionInfo(keyArgs, newKeyArgs, ozoneManager);
 

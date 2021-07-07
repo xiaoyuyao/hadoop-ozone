@@ -82,6 +82,7 @@ public class OMVolumeCreateRequest extends OMVolumeRequest {
         volumeInfo.toBuilder()
             .setCreationTime(initialTime)
             .setModificationTime(initialTime)
+            .addAllVolumeAcls(getOwnerAcls(volumeInfo.getOwnerName()))
             .build();
 
     return getOmRequest().toBuilder().setCreateVolumeRequest(

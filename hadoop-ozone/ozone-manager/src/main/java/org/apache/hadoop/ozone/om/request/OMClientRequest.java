@@ -21,6 +21,7 @@ package org.apache.hadoop.ozone.om.request;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ipc.ProtobufRpcEngine;
 import org.apache.hadoop.ozone.OmUtils;
 import org.apache.hadoop.ozone.OzoneConsts;
@@ -31,6 +32,7 @@ import org.apache.hadoop.ozone.audit.AuditMessage;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.OzonePrefixPathImpl;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
+import org.apache.hadoop.ozone.om.helpers.OzoneAclUtil;
 import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerDoubleBufferHelper;
 import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerRatisUtils;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
@@ -38,7 +40,10 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.LayoutVersion;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OzoneAclInfo;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
+import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType;
+import org.apache.hadoop.ozone.security.acl.OzoneAclConfig;
 import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.apache.hadoop.ozone.security.acl.OzoneObjInfo;
 import org.apache.hadoop.ozone.security.acl.RequestContext;
@@ -49,6 +54,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -66,6 +72,7 @@ public abstract class OMClientRequest implements RequestAuditor {
 
   private UserGroupInformation userGroupInformation;
   private InetAddress inetAddress;
+  private ACLType userRights, groupRights;
 
   /**
    * Stores the result of request execution in
@@ -77,10 +84,23 @@ public abstract class OMClientRequest implements RequestAuditor {
     FAILURE // The request failed and exception was thrown
   }
 
+  public ACLType getUserRights() {
+    return userRights;
+  }
+
+  public ACLType getGroupRights() {
+    return groupRights;
+  }
+
   public OMClientRequest(OMRequest omRequest) {
     Preconditions.checkNotNull(omRequest);
     this.omRequest = omRequest;
+    OzoneConfiguration conf = new OzoneConfiguration();
+    OzoneAclConfig aclConfig = conf.getObject(OzoneAclConfig.class);
+    this.userRights = aclConfig.getUserDefaultRights();
+    this.groupRights = aclConfig.getGroupDefaultRights();
   }
+
   /**
    * Perform pre-execute steps on a OMRequest.
    *
@@ -119,6 +139,20 @@ public abstract class OMClientRequest implements RequestAuditor {
   @VisibleForTesting
   public OMRequest getOmRequest() {
     return omRequest;
+  }
+
+  protected List<OzoneAclInfo> getOwnerAcls() {
+    return getOwnerAcls(null);
+  }
+
+  protected List<OzoneAclInfo> getOwnerAcls(String owner) {
+    UserGroupInformation ugi;
+    if (owner != null) {
+      ugi = ProtobufRpcEngine.Server.getRemoteUser();
+    } else {
+      ugi =  UserGroupInformation.createRemoteUser(owner);
+    }
+    return OzoneAclUtil.getProtoAclList(ugi, userRights, groupRights);
   }
 
   /**

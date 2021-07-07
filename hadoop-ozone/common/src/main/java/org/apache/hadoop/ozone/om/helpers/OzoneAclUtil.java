@@ -22,8 +22,10 @@ import org.apache.hadoop.ozone.OzoneAcl;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OzoneAclInfo;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
+import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLIdentityType;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType;
 import org.apache.hadoop.ozone.security.acl.RequestContext;
+import org.apache.hadoop.security.UserGroupInformation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,10 +49,26 @@ public final class OzoneAclUtil {
   }
 
   /**
+   * Helper function to get access acl list in proto format for current user.
+   *
+   * @param ownerUgi
+   * @param userRights
+   * @param groupRights
+   * @return list of OzoneAclInfo in protobuf format.
+   * */
+  public static List<OzoneAclInfo> getProtoAclList(
+      UserGroupInformation ownerUgi, ACLType userRights, ACLType groupRights) {
+    return toProtobuf(getAclList(ownerUgi.getShortUserName(),
+        ownerUgi.getGroupNames(), userRights, groupRights));
+  }
+
+  /**
    * Helper function to get access acl list for current user.
    *
    * @param userName
    * @param userGroups
+   * @param userRights
+   * @param groupRights
    * @return list of OzoneAcls
    * */
   public static List<OzoneAcl> getAclList(String userName,
@@ -65,6 +83,19 @@ public final class OzoneAclUtil {
       Arrays.asList(userGroups).forEach((group) -> listOfAcls.add(
           new OzoneAcl(GROUP, group, groupRights, ACCESS)));
     }
+    return listOfAcls;
+  }
+
+  public static List<OzoneAcl> getAcls(UserGroupInformation ugi,
+      ACLType userRights, ACLType groupRights) {
+    List<OzoneAcl> listOfAcls = new ArrayList<>();
+    //User ACL
+    listOfAcls.add(new OzoneAcl(IAccessAuthorizer.ACLIdentityType.USER,
+        ugi.getShortUserName(), userRights, ACCESS));
+    //Group ACLs of the User
+    List<String> userGroups = Arrays.asList(ugi.getGroupNames());
+    userGroups.stream().forEach((group) -> listOfAcls.add(
+        new OzoneAcl(ACLIdentityType.GROUP, group, groupRights, ACCESS)));
     return listOfAcls;
   }
 
@@ -86,6 +117,31 @@ public final class OzoneAclUtil {
     List retList = aclList.stream().filter(acl -> acl.getType() == type
         && acl.getName().equals(identityName)).collect(Collectors.toList());
     return retList;
+  }
+
+  /**
+   * Check if acl right requested for given RequestContext exist
+   * in provided acl list.
+   * Acl validation rules:
+   * 1. If user/group has ALL bit set than all user should have all rights.
+   * 2. If user/group has NONE bit set than user/group will not have any right.
+   * 3. For all other individual rights individual bits should be set.
+   *
+   * @param acls
+   * @param context
+   * @return return true if acl list contains right requsted in context.
+   * */
+  public static boolean checkAclRight(List<OzoneAcl> acls,
+      RequestContext context) throws OMException {
+    String[] userGroups = context.getClientUgi().getGroupNames();
+    String userName = context.getClientUgi().getShortUserName();
+    ACLType aclToCheck = context.getAclRights();
+    for (OzoneAcl a : acls) {
+      if(checkAccessInAcl(a, userGroups, userName, aclToCheck)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static boolean checkAccessInAcl(OzoneAcl a, String[] groups,
@@ -126,7 +182,7 @@ public final class OzoneAclUtil {
   public static boolean checkAclRights(List<OzoneAcl> acls,
       RequestContext context) throws OMException {
     String[] userGroups = context.getClientUgi().getGroupNames();
-    String userName = context.getClientUgi().getUserName();
+    String userName = context.getClientUgi().getShortUserName();
     ACLType aclToCheck = context.getAclRights();
     for (OzoneAcl acl : acls) {
       if (checkAccessInAcl(acl, userGroups, userName, aclToCheck)) {

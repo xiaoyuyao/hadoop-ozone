@@ -138,7 +138,8 @@ public class OMFileCreateRequest extends OMKeyRequest {
 
     KeyArgs.Builder newKeyArgs = keyArgs.toBuilder()
         .setModificationTime(Time.now()).setType(type).setFactor(factor)
-        .setDataSize(requestedSize);
+        .setDataSize(requestedSize)
+        .addAllAcls(getOwnerAcls());
 
     newKeyArgs.addAllKeyLocations(omKeyLocationInfoList.stream()
         .map(info -> info.getProtobuf(getOmRequest().getVersion()))

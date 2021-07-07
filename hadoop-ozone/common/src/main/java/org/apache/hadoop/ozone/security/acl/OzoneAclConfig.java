@@ -50,14 +50,14 @@ public class OzoneAclConfig {
 
   public ACLType getUserDefaultRights() {
     if (userDefaultRights == null) {
-      return ACLType.ALL;
+      return ACLType.READ;
     }
     return ACLType.valueOf(userDefaultRights);
   }
 
   public ACLType getGroupDefaultRights() {
     if (groupDefaultRights == null) {
-      return ACLType.ALL;
+      return ACLType.READ;
     }
     return ACLType.valueOf(groupDefaultRights);
   }
